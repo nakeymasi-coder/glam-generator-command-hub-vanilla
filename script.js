@@ -92,7 +92,13 @@
     if (supabaseClient) {
       const { data } = await supabaseClient.auth.getSession();
       if (data && data.session) await enterAuthenticatedApp(data.session);
-      supabaseClient.auth.onAuthStateChange(async (_event, session) => {
+      supabaseClient.auth.onAuthStateChange(async (event, session) => {
+        if (event === "PASSWORD_RECOVERY" && session) {
+          await enterAuthenticatedApp(session);
+          setTimeout(() => openPasswordRecoveryModal(), 0);
+          return;
+        }
+
         if (session) await enterAuthenticatedApp(session);
         else if (!state.preview) showAuth();
       });
@@ -226,6 +232,85 @@
     } catch (error) {
       toast(error.message);
     }
+  }
+
+  function openPasswordRecoveryModal() {
+    openModal(`
+      <div class="section-kicker">ACCOUNT SECURITY</div>
+      <h2>Set New Password</h2>
+      <p style="color:var(--text-soft);line-height:1.65;margin-bottom:18px;">
+        Enter a new password for your GLAM Generator Command Hub account.
+      </p>
+
+      <form id="passwordRecoveryForm">
+        <label>
+          New Password
+          <input
+            id="recoveryPassword"
+            type="password"
+            minlength="8"
+            autocomplete="new-password"
+            placeholder="Enter at least 8 characters"
+            required
+          >
+        </label>
+
+        <label>
+          Confirm New Password
+          <input
+            id="recoveryPasswordConfirm"
+            type="password"
+            minlength="8"
+            autocomplete="new-password"
+            placeholder="Enter the same password again"
+            required
+          >
+        </label>
+
+        <button class="btn btn-primary btn-full" type="submit">
+          Save New Password
+        </button>
+      </form>
+    `);
+
+    const form = document.getElementById("passwordRecoveryForm");
+
+    form.addEventListener("submit", async (event) => {
+      event.preventDefault();
+
+      const password = document.getElementById("recoveryPassword").value;
+      const confirmPassword = document.getElementById(
+        "recoveryPasswordConfirm",
+      ).value;
+
+      if (password.length < 8) {
+        toast("Your new password must be at least 8 characters.");
+        return;
+      }
+
+      if (password !== confirmPassword) {
+        toast("The passwords do not match.");
+        return;
+      }
+
+      const submitButton = form.querySelector('button[type="submit"]');
+      submitButton.disabled = true;
+      submitButton.textContent = "Saving...";
+
+      try {
+        const { error } = await supabaseClient.auth.updateUser({ password });
+
+        if (error) throw error;
+
+        closeModal();
+        toast("Password changed successfully.");
+        navigate("dashboard");
+      } catch (error) {
+        submitButton.disabled = false;
+        submitButton.textContent = "Save New Password";
+        toast(error.message || "Unable to change your password.");
+      }
+    });
   }
 
   function enterPreview() {
