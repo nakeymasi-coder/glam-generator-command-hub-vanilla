@@ -112,9 +112,10 @@
     document
       .getElementById("forgotBtn")
       .addEventListener("click", forgotPassword);
-    document
-      .getElementById("previewBtn")
-      .addEventListener("click", enterPreview);
+    const previewBtn = document.getElementById("previewBtn");
+    if (previewBtn) {
+      previewBtn.remove();
+    }
     document.getElementById("logoutBtn").addEventListener("click", logout);
     document.getElementById("menuBtn").addEventListener("click", openMenu);
     document
@@ -228,12 +229,11 @@
   }
 
   function enterPreview() {
-    state.preview = true;
-    state.user = { id: "local-preview", email: "Local preview" };
-    state.profile.preferred_name =
-      localStorage.getItem("glam_preview_name") || "Glam";
-    showApp();
-    navigate("dashboard");
+    state.preview = false;
+    state.user = null;
+    state.session = null;
+    showAuth();
+    toast("Please log in to access the Generator Command Hub.");
   }
 
   async function enterAuthenticatedApp(session) {
