@@ -1,0 +1,204 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <meta
+      name="description"
+      content="GLAM Generator Command Hub — private multi-user creative workspace."
+    />
+    <title>GLAM Generator Command Hub</title>
+    <link rel="stylesheet" href="style.css" />
+  </head>
+  <body>
+    <div id="toast" class="toast" role="status" aria-live="polite"></div>
+
+    <section id="authView" class="auth-page">
+      <div class="auth-shell">
+        <div class="auth-intro">
+          <div class="brand-hero-logo-wrap">
+            <img
+              src="glam-logo.png"
+              alt="Glam Hustle Hub"
+              class="brand-hero-logo"
+            />
+            <span class="logo-sparkle sparkle-one">✦</span>
+            <span class="logo-sparkle sparkle-two">✦</span>
+            <span class="logo-sparkle sparkle-three">✦</span>
+          </div>
+
+          <div class="eyebrow">GLAM GENERATOR COMMAND HUB</div>
+          <h1>Create. Organize.<br />Generate.</h1>
+          <p>Your private creative command center.</p>
+          <div class="auth-points">
+            <span>Private workspaces</span>
+            <span>Generator vault</span>
+            <span>Daily Glam</span>
+          </div>
+        </div>
+
+        <div class="auth-card">
+          <div class="auth-tabs" role="tablist">
+            <button id="loginTab" class="auth-tab active" type="button">
+              Log In
+            </button>
+            <button id="signupTab" class="auth-tab" type="button">
+              Sign Up
+            </button>
+          </div>
+
+          <form id="authForm">
+            <label
+              >Email
+              <input
+                id="emailInput"
+                type="email"
+                autocomplete="email"
+                placeholder="you@example.com"
+                required
+              />
+            </label>
+            <label
+              >Password
+              <input
+                id="passwordInput"
+                type="password"
+                autocomplete="current-password"
+                minlength="6"
+                placeholder="••••••••"
+                required
+              />
+            </label>
+            <label id="rememberRow" class="check-row">
+              <input id="rememberInput" type="checkbox" />
+              <span>Remember me</span>
+            </label>
+            <button
+              id="authSubmit"
+              class="btn btn-primary btn-full"
+              type="submit"
+            >
+              Log In
+            </button>
+          </form>
+
+          <div class="auth-links">
+            <button id="forgotBtn" class="link-btn" type="button">
+              Forgot password?
+            </button>
+          </div>
+
+          <div id="connectionNotice" class="connection-notice">
+            Add your Supabase URL and public anon key to
+            <strong>config.js</strong> when you're ready to turn on real
+            accounts.
+          </div>
+
+          <button
+            id="previewBtn"
+            class="btn btn-secondary btn-full"
+            type="button"
+          >
+            Preview Dashboard Locally
+          </button>
+          <small class="preview-note"
+            >Local preview is for design/testing only. Production accounts still
+            use Supabase + Row Level Security.</small
+          >
+        </div>
+      </div>
+    </section>
+
+    <section id="appView" class="app hidden">
+      <div id="mobileOverlay" class="mobile-overlay"></div>
+      <aside id="sidebar" class="sidebar">
+        <div class="brand-row">
+          <div class="brand-logo">GLAM <span>HUB</span></div>
+          <button
+            id="closeMenuBtn"
+            class="icon-btn mobile-only"
+            type="button"
+            aria-label="Close menu"
+          >
+            ×
+          </button>
+        </div>
+
+        <div class="workspace-label">YOUR WORKSPACE</div>
+        <nav id="mainNav" class="nav-list">
+          <button class="nav-item active" data-page="dashboard">
+            Dashboard
+          </button>
+          <button class="nav-item" data-page="vault">Generator Vault</button>
+          <button class="nav-item" data-page="prompts">Saved Prompts</button>
+          <button class="nav-item" data-page="projects">
+            Generator Projects
+          </button>
+          <button class="nav-item" data-page="ideas">Idea Brain</button>
+          <button class="nav-item" data-page="studio">
+            Universal Prompt Studio
+          </button>
+          <button class="nav-item" data-page="favorites">
+            Favorite Styles
+          </button>
+          <button class="nav-item" data-page="mockups">Saved Mockups</button>
+          <button class="nav-item" data-page="storyboards">Storyboards</button>
+          <button class="nav-item" data-page="ugc">UGC Content</button>
+          <button class="nav-item" data-page="stationery">Stationery</button>
+          <button class="nav-item" data-page="daily">Daily Glam</button>
+          <button class="nav-item" data-page="usage">AI Usage</button>
+          <button class="nav-item" data-page="settings">
+            Profile & Settings
+          </button>
+        </nav>
+
+        <div class="sidebar-bottom">
+          <button id="adminNavBtn" class="nav-item hidden" data-page="admin">
+            Admin
+          </button>
+          <button id="logoutBtn" class="nav-item logout-btn" type="button">
+            Log Out
+          </button>
+        </div>
+      </aside>
+
+      <main class="main-panel">
+        <header class="topbar">
+          <button
+            id="menuBtn"
+            class="icon-btn menu-btn"
+            type="button"
+            aria-label="Open menu"
+          >
+            ☰
+          </button>
+          <div class="topbar-title">
+            <strong>GLAM Generator Command Hub</strong>
+            <small id="topbarEmail">Local preview</small>
+          </div>
+          <div class="account-chip"><span id="accountInitial">G</span></div>
+        </header>
+
+        <div id="pageContainer" class="page-container"></div>
+      </main>
+    </section>
+
+    <div id="modal" class="modal hidden" role="dialog" aria-modal="true">
+      <div class="modal-card">
+        <button
+          id="modalClose"
+          class="modal-close"
+          type="button"
+          aria-label="Close"
+        >
+          ×
+        </button>
+        <div id="modalBody"></div>
+      </div>
+    </div>
+
+    <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+    <script src="config.js"></script>
+    <script src="script.js"></script>
+  </body>
+</html>

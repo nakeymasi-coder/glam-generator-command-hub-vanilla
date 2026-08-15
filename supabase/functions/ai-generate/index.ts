@@ -1,0 +1,2 @@
+import { serve } from 'https://deno.land/std@0.224.0/http/server.ts'
+serve(async (req)=>{ if(req.method!=='POST') return new Response('Method not allowed',{status:405}); const key=Deno.env.get('OPENAI_API_KEY'); if(!key) return new Response(JSON.stringify({error:'AI provider not configured yet.'}),{status:503,headers:{'content-type':'application/json'}}); return new Response(JSON.stringify({error:'Provider adapter scaffold is ready. Add the provider call here and log usage server-side.'}),{status:501,headers:{'content-type':'application/json'}}) })
