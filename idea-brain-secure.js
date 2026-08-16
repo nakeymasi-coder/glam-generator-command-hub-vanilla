@@ -81,20 +81,88 @@
   }
 
   function extractBridgeReply(data) {
-    const candidates = [
+    const directCandidates = [
       data?.reply,
       data?.feedback,
       data?.coaching,
       data?.response,
-      data?.output,
-      data?.message,
+      data?.output_text,
+      data?.text,
+      data?.answer,
+      data?.content,
+      typeof data?.output === "string" ? data.output : "",
+      typeof data?.message === "string" ? data.message : "",
       data?.result?.reply,
       data?.result?.feedback,
       data?.result?.response,
+      data?.result?.output_text,
+      data?.result?.text,
+      data?.result?.answer,
+      data?.result?.content,
       typeof data?.result === "string" ? data.result : "",
+      data?.choices?.[0]?.message?.content,
+      data?.choices?.[0]?.text,
+      data?.output?.[0]?.content?.[0]?.text,
+      data?.output?.[0]?.content?.[0]?.value,
+      data?.response?.output_text,
+      data?.response?.text,
     ];
 
-    return String(candidates.find((value) => typeof value === "string" && value.trim()) || "").trim();
+    const direct = directCandidates.find(
+      (value) => typeof value === "string" && value.trim(),
+    );
+    if (direct) return direct.trim();
+
+    const strings = [];
+    const seen = new Set();
+    const preferredKeys = new Set([
+      "reply",
+      "feedback",
+      "coaching",
+      "response",
+      "output_text",
+      "text",
+      "answer",
+      "content",
+      "value",
+      "completion",
+      "assistant",
+      "result",
+      "output",
+    ]);
+
+    function walk(value, key = "", depth = 0) {
+      if (depth > 8 || value == null) return;
+
+      if (typeof value === "string") {
+        const clean = value.trim();
+        if (!clean || seen.has(clean)) return;
+        seen.add(clean);
+        strings.push({
+          value: clean,
+          score:
+            clean.length +
+            (preferredKeys.has(String(key).toLowerCase()) ? 10000 : 0),
+        });
+        return;
+      }
+
+      if (Array.isArray(value)) {
+        value.forEach((item) => walk(item, key, depth + 1));
+        return;
+      }
+
+      if (typeof value === "object") {
+        Object.entries(value).forEach(([childKey, childValue]) => {
+          walk(childValue, childKey, depth + 1);
+        });
+      }
+    }
+
+    walk(data);
+
+    strings.sort((a, b) => b.score - a.score);
+    return strings[0]?.value || "";
   }
 
   async function askIdeaBrain(message, history) {
