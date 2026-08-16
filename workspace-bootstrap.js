@@ -2,19 +2,26 @@
   "use strict";
 
   const STORAGE_KEY = "glam_command_hub_preview";
+  const OWNER_KEY = "glam_workspace_owner";
   const config = window.GLAM_CONFIG || {};
   const originalSetItem = Storage.prototype.setItem;
 
   let workspaceClient = null;
   let workspaceUser = null;
-  let cloudData = {
-    prompts: [],
-    projects: [],
-    ideas: [],
-    generators: [],
-    usage: [],
-  };
+  let workspaceReadyUserId = null;
+  let cloudData = emptyWorkspace();
   let syncTimer = null;
+  let syncInstalled = false;
+
+  function emptyWorkspace() {
+    return {
+      prompts: [],
+      projects: [],
+      ideas: [],
+      generators: [],
+      usage: [],
+    };
+  }
 
   function readLocalWorkspace() {
     try {
@@ -28,6 +35,10 @@
 
   function writeLocalWorkspace(data) {
     originalSetItem.call(localStorage, STORAGE_KEY, JSON.stringify(data));
+  }
+
+  function setOwner(userId) {
+    originalSetItem.call(localStorage, OWNER_KEY, userId || "");
   }
 
   function normalizeCloudData(value) {
@@ -61,6 +72,9 @@
   }
 
   function installWorkspaceSync() {
+    if (syncInstalled) return;
+    syncInstalled = true;
+
     Storage.prototype.setItem = function (key, value) {
       originalSetItem.call(this, key, value);
 
@@ -78,6 +92,49 @@
         saveWorkspaceToSupabase(parsed);
       }, 250);
     };
+  }
+
+  async function activateWorkspaceForUser(user, reloadAfter) {
+    if (!user || !workspaceClient) return;
+    if (workspaceReadyUserId === user.id) return;
+
+    const previousOwner = localStorage.getItem(OWNER_KEY) || "";
+    const localWorkspace = normalizeCloudData(readLocalWorkspace());
+
+    workspaceUser = user;
+
+    const { data: row, error } = await workspaceClient
+      .from("workspace_state")
+      .select("data")
+      .eq("user_id", user.id)
+      .maybeSingle();
+
+    if (error) {
+      console.error("Private workspace load failed:", error);
+      return;
+    }
+
+    if (row?.data) {
+      cloudData = normalizeCloudData(row.data);
+    } else if (!previousOwner || previousOwner === user.id) {
+      // First migration for the account already using this browser:
+      // move its existing local workspace into its private Supabase row.
+      cloudData = localWorkspace;
+      await saveWorkspaceToSupabase(cloudData);
+    } else {
+      // A different account signed in on the same browser. Never copy the
+      // previous account's local workspace into the new account.
+      cloudData = emptyWorkspace();
+      await saveWorkspaceToSupabase(cloudData);
+    }
+
+    writeLocalWorkspace(cloudData);
+    setOwner(user.id);
+    workspaceReadyUserId = user.id;
+
+    if (reloadAfter) {
+      window.location.reload();
+    }
   }
 
   function loadMainApp() {
@@ -105,34 +162,32 @@
         config.SUPABASE_ANON_KEY,
       );
 
-      const { data: sessionData } = await workspaceClient.auth.getSession();
-      workspaceUser = sessionData?.session?.user || null;
-
-      if (!workspaceUser) {
-        loadMainApp();
-        return;
-      }
-
-      const localWorkspace = normalizeCloudData(readLocalWorkspace());
-      const { data: row, error } = await workspaceClient
-        .from("workspace_state")
-        .select("data")
-        .eq("user_id", workspaceUser.id)
-        .maybeSingle();
-
-      if (error) throw error;
-
-      if (row?.data) {
-        cloudData = normalizeCloudData(row.data);
-        writeLocalWorkspace(cloudData);
-      } else {
-        cloudData = localWorkspace;
-        await saveWorkspaceToSupabase(cloudData);
-      }
-
       installWorkspaceSync();
+
+      const { data: sessionData } = await workspaceClient.auth.getSession();
+      const initialUser = sessionData?.session?.user || null;
+
+      if (initialUser) {
+        await activateWorkspaceForUser(initialUser, false);
+      }
+
+      workspaceClient.auth.onAuthStateChange((event, session) => {
+        if (event === "SIGNED_OUT") {
+          workspaceUser = null;
+          workspaceReadyUserId = null;
+          return;
+        }
+
+        if (event === "SIGNED_IN" && session?.user) {
+          setTimeout(() => {
+            activateWorkspaceForUser(session.user, true).catch((error) =>
+              console.error("Private workspace sign-in sync failed:", error),
+            );
+          }, 0);
+        }
+      });
     } catch (error) {
-      console.error("Private workspace cloud bootstrap failed:", error);
+      console.error("Private workspace bootstrap failed:", error);
     }
 
     loadMainApp();
