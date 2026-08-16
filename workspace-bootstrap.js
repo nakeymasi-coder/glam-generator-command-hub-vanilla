@@ -19,6 +19,11 @@
       projects: [],
       ideas: [],
       generators: [],
+      favorites: [],
+      mockups: [],
+      storyboards: [],
+      ugc: [],
+      stationery: [],
       usage: [],
     };
   }
@@ -48,6 +53,11 @@
       projects: Array.isArray(data.projects) ? data.projects : [],
       ideas: Array.isArray(data.ideas) ? data.ideas : [],
       generators: Array.isArray(data.generators) ? data.generators : [],
+      favorites: Array.isArray(data.favorites) ? data.favorites : [],
+      mockups: Array.isArray(data.mockups) ? data.mockups : [],
+      storyboards: Array.isArray(data.storyboards) ? data.storyboards : [],
+      ugc: Array.isArray(data.ugc) ? data.ugc : [],
+      stationery: Array.isArray(data.stationery) ? data.stationery : [],
       usage: Array.isArray(data.usage) ? data.usage : [],
     };
   }
@@ -145,9 +155,6 @@
         window.location.hash.replace(/^#/, ""),
       ).get("type") === "recovery";
 
-      // workspace-bootstrap may finish after the browser's real
-      // DOMContentLoaded event. script.js normally initializes from that event,
-      // so replay it once for the main app when needed.
       if (document.readyState !== "loading" && !isRecovery) {
         document.dispatchEvent(new Event("DOMContentLoaded"));
       }
