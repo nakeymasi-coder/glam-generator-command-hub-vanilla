@@ -1,10 +1,26 @@
 (function () {
   "use strict";
 
-  const params = new URLSearchParams(window.location.hash.replace(/^#/, ""));
-  if (params.get("type") !== "recovery") return;
+  const RECOVERY_FLAG = "glam_password_recovery_pending";
+  const hashParams = new URLSearchParams(
+    window.location.hash.replace(/^#/, ""),
+  );
+  const recoveryFromLink = hashParams.get("type") === "recovery";
 
-  document.addEventListener("DOMContentLoaded", async () => {
+  // Supabase can clean the recovery hash very quickly. Remember the recovery
+  // state before that happens so the password screen survives any auth refresh.
+  if (recoveryFromLink) {
+    sessionStorage.setItem(RECOVERY_FLAG, "1");
+  }
+
+  const recoveryPending =
+    recoveryFromLink || sessionStorage.getItem(RECOVERY_FLAG) === "1";
+
+  if (!recoveryPending) return;
+
+  function showRecoveryScreen() {
+    if (document.getElementById("glamRecoveryOverlay")) return;
+
     const config = window.GLAM_CONFIG || {};
 
     if (
@@ -23,10 +39,10 @@
     const overlay = document.createElement("div");
     overlay.id = "glamRecoveryOverlay";
     overlay.style.cssText =
-      "position:fixed;inset:0;z-index:999999;background:rgba(10,20,30,.72);display:grid;place-items:center;padding:24px;backdrop-filter:blur(8px)";
+      "position:fixed;inset:0;z-index:2147483647;background:rgba(10,20,30,.82);display:grid;place-items:center;padding:24px;backdrop-filter:blur(10px)";
 
     overlay.innerHTML = `
-      <div style="width:min(520px,100%);background:#fff;border:1px solid #b9ddf8;border-radius:24px;padding:28px;box-shadow:0 28px 80px rgba(0,0,0,.25);font-family:Arial,sans-serif;color:#171A1E">
+      <div style="width:min(520px,100%);background:#fff;border:1px solid #b9ddf8;border-radius:24px;padding:28px;box-shadow:0 28px 80px rgba(0,0,0,.30);font-family:Arial,sans-serif;color:#171A1E">
         <div style="font-size:12px;font-weight:800;letter-spacing:.14em;color:#168FEA;margin-bottom:8px">ACCOUNT SECURITY</div>
         <h2 style="margin:0 0 10px;font-size:30px">Set New Password</h2>
         <p style="margin:0 0 20px;color:#5b6b79;line-height:1.55">Enter a new password for your GLAM Generator Command Hub account.</p>
@@ -52,6 +68,18 @@
     `;
 
     document.body.appendChild(overlay);
+
+    // If another part of the app changes screens while Supabase finishes the
+    // recovery sign-in, keep this security screen above the dashboard.
+    const observer = new MutationObserver(() => {
+      if (
+        sessionStorage.getItem(RECOVERY_FLAG) === "1" &&
+        !document.getElementById("glamRecoveryOverlay")
+      ) {
+        document.body.appendChild(overlay);
+      }
+    });
+    observer.observe(document.documentElement, { childList: true, subtree: true });
 
     document
       .getElementById("glamRecoveryForm")
@@ -79,6 +107,16 @@
         button.textContent = "Saving...";
         message.textContent = "";
 
+        const { data: sessionData } = await recoveryClient.auth.getSession();
+
+        if (!sessionData || !sessionData.session) {
+          message.textContent =
+            "Your reset session is not ready yet. Please wait a moment and try again.";
+          button.disabled = false;
+          button.textContent = "Save New Password";
+          return;
+        }
+
         const { error } = await recoveryClient.auth.updateUser({ password });
 
         if (error) {
@@ -88,7 +126,9 @@
           return;
         }
 
-        window.location.hash = "";
+        sessionStorage.removeItem(RECOVERY_FLAG);
+        observer.disconnect();
+        history.replaceState(null, "", window.location.pathname + window.location.search);
 
         overlay.innerHTML = `
           <div style="width:min(520px,100%);background:#fff;border:1px solid #b9ddf8;border-radius:24px;padding:32px;text-align:center;font-family:Arial,sans-serif;color:#171A1E">
@@ -105,5 +145,13 @@
             window.location.reload();
           });
       });
-  });
+  }
+
+  if (document.readyState === "loading") {
+    document.addEventListener("DOMContentLoaded", showRecoveryScreen, {
+      once: true,
+    });
+  } else {
+    showRecoveryScreen();
+  }
 })();
