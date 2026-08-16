@@ -41,10 +41,10 @@
     };
   }
 
-  async function saveVaultToSupabase(generators) {
+  async function saveWorkspaceToSupabase(data) {
     if (!workspaceClient || !workspaceUser) return;
 
-    cloudData.generators = Array.isArray(generators) ? generators : [];
+    cloudData = normalizeCloudData(data);
 
     const { error } = await workspaceClient.from("workspace_state").upsert(
       {
@@ -56,11 +56,11 @@
     );
 
     if (error) {
-      console.error("Generator Vault cloud sync failed:", error);
+      console.error("Private workspace cloud sync failed:", error);
     }
   }
 
-  function installVaultSync() {
+  function installWorkspaceSync() {
     Storage.prototype.setItem = function (key, value) {
       originalSetItem.call(this, key, value);
 
@@ -75,7 +75,7 @@
 
       clearTimeout(syncTimer);
       syncTimer = setTimeout(() => {
-        saveVaultToSupabase(parsed.generators || []);
+        saveWorkspaceToSupabase(parsed);
       }, 250);
     };
   }
@@ -113,7 +113,7 @@
         return;
       }
 
-      const localWorkspace = readLocalWorkspace();
+      const localWorkspace = normalizeCloudData(readLocalWorkspace());
       const { data: row, error } = await workspaceClient
         .from("workspace_state")
         .select("data")
@@ -124,23 +124,15 @@
 
       if (row?.data) {
         cloudData = normalizeCloudData(row.data);
-
-        // Generator Vault is the first section moved to private account storage.
-        // Keep the remaining sections local until their migrations are enabled.
-        localWorkspace.generators = cloudData.generators;
-        writeLocalWorkspace(localWorkspace);
+        writeLocalWorkspace(cloudData);
       } else {
-        cloudData = normalizeCloudData({});
-        cloudData.generators = Array.isArray(localWorkspace.generators)
-          ? localWorkspace.generators
-          : [];
-
-        await saveVaultToSupabase(cloudData.generators);
+        cloudData = localWorkspace;
+        await saveWorkspaceToSupabase(cloudData);
       }
 
-      installVaultSync();
+      installWorkspaceSync();
     } catch (error) {
-      console.error("Generator Vault cloud bootstrap failed:", error);
+      console.error("Private workspace cloud bootstrap failed:", error);
     }
 
     loadMainApp();
