@@ -69,14 +69,45 @@
     }));
   }
 
+  function buildAttempt(message, history) {
+    const recent = messageHistoryForBridge(history);
+    if (!recent.length) return message;
+
+    const transcript = recent
+      .map((item) => `${item.role === "assistant" ? "Idea Brain" : "User"}: ${item.content}`)
+      .join("\n\n");
+
+    return `You are Idea Brain inside GLAM Generator Command Hub. Help the user brainstorm, organize, improve, and develop creative or business ideas. Be practical, specific, encouraging, and concise. Continue naturally from the prior conversation when relevant.\n\nPrior conversation:\n${transcript}\n\nUser's newest idea or question:\n${message}`;
+  }
+
+  function extractBridgeReply(data) {
+    const candidates = [
+      data?.reply,
+      data?.feedback,
+      data?.coaching,
+      data?.response,
+      data?.output,
+      data?.message,
+      data?.result?.reply,
+      data?.result?.feedback,
+      data?.result?.response,
+      typeof data?.result === "string" ? data.result : "",
+    ];
+
+    return String(candidates.find((value) => typeof value === "string" && value.trim()) || "").trim();
+  }
+
   async function askIdeaBrain(message, history) {
     const bridgeUrl = String(config.AI_COACH_BRIDGE_URL || "").trim();
     if (!bridgeUrl) throw new Error("AI Coach bridge URL is missing.");
+
+    const attempt = buildAttempt(message, history);
 
     const response = await fetch(bridgeUrl, {
       method: "POST",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({
+        attempt,
         message,
         mode: "idea-brain",
         conversationHistory: messageHistoryForBridge(history),
@@ -88,7 +119,7 @@
       throw new Error(data?.error || data?.message || "Idea Brain request failed.");
     }
 
-    const reply = String(data?.reply || "").trim();
+    const reply = extractBridgeReply(data);
     if (!reply) throw new Error("Idea Brain returned an empty response.");
     return reply;
   }
