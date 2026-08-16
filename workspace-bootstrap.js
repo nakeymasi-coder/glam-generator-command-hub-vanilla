@@ -24,6 +24,7 @@
       storyboards: [],
       ugc: [],
       stationery: [],
+      daily_history: [],
       usage: [],
     };
   }
@@ -58,6 +59,7 @@
       storyboards: Array.isArray(data.storyboards) ? data.storyboards : [],
       ugc: Array.isArray(data.ugc) ? data.ugc : [],
       stationery: Array.isArray(data.stationery) ? data.stationery : [],
+      daily_history: Array.isArray(data.daily_history) ? data.daily_history : [],
       usage: Array.isArray(data.usage) ? data.usage : [],
     };
   }
