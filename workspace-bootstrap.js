@@ -117,13 +117,9 @@
     if (row?.data) {
       cloudData = normalizeCloudData(row.data);
     } else if (!previousOwner || previousOwner === user.id) {
-      // First migration for the account already using this browser:
-      // move its existing local workspace into its private Supabase row.
       cloudData = localWorkspace;
       await saveWorkspaceToSupabase(cloudData);
     } else {
-      // A different account signed in on the same browser. Never copy the
-      // previous account's local workspace into the new account.
       cloudData = emptyWorkspace();
       await saveWorkspaceToSupabase(cloudData);
     }
@@ -143,6 +139,20 @@
     const script = document.createElement("script");
     script.src = "script.js";
     script.dataset.glamMainApp = "true";
+
+    script.addEventListener("load", () => {
+      const isRecovery = new URLSearchParams(
+        window.location.hash.replace(/^#/, ""),
+      ).get("type") === "recovery";
+
+      // workspace-bootstrap may finish after the browser's real
+      // DOMContentLoaded event. script.js normally initializes from that event,
+      // so replay it once for the main app when needed.
+      if (document.readyState !== "loading" && !isRecovery) {
+        document.dispatchEvent(new Event("DOMContentLoaded"));
+      }
+    });
+
     document.body.appendChild(script);
   }
 
