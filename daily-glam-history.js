@@ -11,6 +11,8 @@
     config.SUPABASE_ANON_KEY,
   );
 
+  let renderingDailyGlam = false;
+
   function escapeHtml(value) {
     return String(value ?? "").replace(/[&<>'"]/g, (c) => ({
       "&": "&amp;",
@@ -115,7 +117,7 @@
     renderDailyGlam();
   }
 
-  async function savePreferences(event, profile) {
+  async function savePreferences(event) {
     event.preventDefault();
     const user = await getSessionUser();
     if (!user) return toast("Please log in again.");
@@ -146,72 +148,96 @@
   }
 
   async function renderDailyGlam() {
-    const container = document.getElementById("pageContainer");
-    if (!container) return;
+    if (renderingDailyGlam) return;
+    renderingDailyGlam = true;
 
-    const user = await getSessionUser();
-    if (!user) return;
+    try {
+      const container = document.getElementById("pageContainer");
+      if (!container) return;
 
-    const profile = await loadProfile(user);
-    const current = todayMessage(profile);
-    const workspace = readWorkspace();
-    const history = Array.isArray(workspace.daily_history) ? workspace.daily_history : [];
+      const user = await getSessionUser();
+      if (!user) return;
 
-    document.querySelectorAll(".nav-item[data-page]").forEach((btn) => {
-      btn.classList.toggle("active", btn.dataset.page === "daily");
-    });
+      const profile = await loadProfile(user);
+      const current = todayMessage(profile);
+      const workspace = readWorkspace();
+      const history = Array.isArray(workspace.daily_history) ? workspace.daily_history : [];
 
-    container.innerHTML = `
-      <div class="page-header">
-        <p>PRIVATE WORKSPACE</p>
-        <h1>Daily Glam</h1>
-        <span>Personal encouragement, faith preferences, and your private Daily Glam history.</span>
-      </div>
+      document.querySelectorAll(".nav-item[data-page]").forEach((btn) => {
+        btn.classList.toggle("active", btn.dataset.page === "daily");
+      });
 
-      <div class="content-grid">
-        <section class="card">
-          <div class="card-head"><h3>Today</h3><span class="badge">For ${escapeHtml(profile.preferred_name || "Creator")}</span></div>
-          <p class="daily-message">${escapeHtml(current.message)}</p>
-          ${current.verse ? `<p class="verse">${escapeHtml(current.verse)}</p>` : ""}
-          <div class="form-actions">
-            <button id="dgPlay" class="btn btn-secondary" type="button">Play</button>
-            <button id="dgSaveToday" class="btn btn-primary" type="button">Save Today’s Glam</button>
-          </div>
-        </section>
-
-        <section class="card">
-          <div class="card-head"><h3>Preferences</h3><span class="badge">Private</span></div>
-          <form id="dgPreferencesForm">
-            <label>Preferred name<input id="dgPreferredName" value="${escapeHtml(profile.preferred_name || "")}"></label>
-            <label class="switch-row"><span>Daily Glam messages</span><input id="dgDaily" type="checkbox" ${profile.daily_glam ? "checked" : ""}></label>
-            <label class="switch-row"><span>Affirmations</span><input id="dgAffirmations" type="checkbox" ${profile.affirmations ? "checked" : ""}></label>
-            <label class="switch-row"><span>General encouragement</span><input id="dgEncouragement" type="checkbox" ${profile.general_encouragement ? "checked" : ""}></label>
-            <label class="switch-row"><span>Business motivation</span><input id="dgBusiness" type="checkbox" ${profile.business_motivation ? "checked" : ""}></label>
-            <label class="switch-row"><span>Bible verses / faith-based content</span><input id="dgFaith" type="checkbox" ${profile.faith_based ? "checked" : ""}></label>
-            <div class="form-actions"><button class="btn btn-primary" type="submit">Save Preferences</button></div>
-          </form>
-        </section>
-      </div>
-
-      <section class="card" style="margin-top:20px;">
-        <div class="card-head"><h3>Daily Glam History</h3><span class="badge">${history.length} Saved</span></div>
-        <div class="item-list">
-          ${history.length ? history.map((item) => `
-            <div class="item-row">
-              <div>
-                <strong>${escapeHtml(item.date || "Saved Daily Glam")}</strong>
-                <div style="color:var(--muted);margin-top:5px;line-height:1.45">${escapeHtml(item.message || "")}</div>
-                ${item.verse ? `<div style="color:var(--muted);margin-top:5px;line-height:1.45">${escapeHtml(item.verse)}</div>` : ""}
-              </div>
-            </div>`).join("") : `<div class="empty-state">No Daily Glam messages saved yet.</div>`}
+      container.innerHTML = `
+        <div class="page-header">
+          <p>PRIVATE WORKSPACE</p>
+          <h1>Daily Glam</h1>
+          <span>Personal encouragement, faith preferences, and your private Daily Glam history.</span>
         </div>
-      </section>`;
 
-    document.getElementById("dgPlay")?.addEventListener("click", () => {
-      speak([current.message, current.verse].filter(Boolean).join(" "));
-    });
-    document.getElementById("dgSaveToday")?.addEventListener("click", () => saveHistoryEntry(profile));
-    document.getElementById("dgPreferencesForm")?.addEventListener("submit", (event) => savePreferences(event, profile));
+        <div class="content-grid">
+          <section class="card">
+            <div class="card-head"><h3>Today</h3><span class="badge">For ${escapeHtml(profile.preferred_name || "Creator")}</span></div>
+            <p class="daily-message">${escapeHtml(current.message)}</p>
+            ${current.verse ? `<p class="verse">${escapeHtml(current.verse)}</p>` : ""}
+            <div class="form-actions">
+              <button id="dgPlay" class="btn btn-secondary" type="button">Play</button>
+              <button id="dgSaveToday" class="btn btn-primary" type="button">Save Today’s Glam</button>
+            </div>
+          </section>
+
+          <section class="card">
+            <div class="card-head"><h3>Preferences</h3><span class="badge">Private</span></div>
+            <form id="dgPreferencesForm">
+              <label>Preferred name<input id="dgPreferredName" value="${escapeHtml(profile.preferred_name || "")}"></label>
+              <label class="switch-row"><span>Daily Glam messages</span><input id="dgDaily" type="checkbox" ${profile.daily_glam ? "checked" : ""}></label>
+              <label class="switch-row"><span>Affirmations</span><input id="dgAffirmations" type="checkbox" ${profile.affirmations ? "checked" : ""}></label>
+              <label class="switch-row"><span>General encouragement</span><input id="dgEncouragement" type="checkbox" ${profile.general_encouragement ? "checked" : ""}></label>
+              <label class="switch-row"><span>Business motivation</span><input id="dgBusiness" type="checkbox" ${profile.business_motivation ? "checked" : ""}></label>
+              <label class="switch-row"><span>Bible verses / faith-based content</span><input id="dgFaith" type="checkbox" ${profile.faith_based ? "checked" : ""}></label>
+              <div class="form-actions"><button class="btn btn-primary" type="submit">Save Preferences</button></div>
+            </form>
+          </section>
+        </div>
+
+        <section class="card" style="margin-top:20px;">
+          <div class="card-head"><h3>Daily Glam History</h3><span class="badge">${history.length} Saved</span></div>
+          <div class="item-list">
+            ${history.length ? history.map((item) => `
+              <div class="item-row">
+                <div>
+                  <strong>${escapeHtml(item.date || "Saved Daily Glam")}</strong>
+                  <div style="color:var(--muted);margin-top:5px;line-height:1.45">${escapeHtml(item.message || "")}</div>
+                  ${item.verse ? `<div style="color:var(--muted);margin-top:5px;line-height:1.45">${escapeHtml(item.verse)}</div>` : ""}
+                </div>
+              </div>`).join("") : `<div class="empty-state">No Daily Glam messages saved yet.</div>`}
+          </div>
+        </section>`;
+
+      document.getElementById("dgPlay")?.addEventListener("click", () => {
+        speak([current.message, current.verse].filter(Boolean).join(" "));
+      });
+      document.getElementById("dgSaveToday")?.addEventListener("click", () => saveHistoryEntry(profile));
+      document.getElementById("dgPreferencesForm")?.addEventListener("submit", savePreferences);
+    } finally {
+      renderingDailyGlam = false;
+    }
+  }
+
+  function dailyNavIsActive() {
+    return Boolean(document.querySelector("#mainNav [data-page='daily'].active"));
+  }
+
+  function forceEnhancedDailyGlam() {
+    const container = document.getElementById("pageContainer");
+    if (!container || !dailyNavIsActive()) return;
+    if (container.querySelector("#dgSaveToday")) return;
+
+    const heading = container.querySelector(".page-header h1, h1");
+    if (heading && heading.textContent.trim() === "Daily Glam") {
+      renderDailyGlam().catch((error) => {
+        console.error("Daily Glam render failed:", error);
+      });
+    }
   }
 
   document.addEventListener("click", (event) => {
@@ -224,4 +250,23 @@
       toast("Unable to open Daily Glam.");
     });
   }, true);
+
+  const observer = new MutationObserver(() => {
+    forceEnhancedDailyGlam();
+  });
+
+  function startDailyGlamGuard() {
+    const container = document.getElementById("pageContainer");
+    if (!container) return;
+    observer.observe(container, { childList: true, subtree: true });
+    forceEnhancedDailyGlam();
+  }
+
+  if (document.readyState === "loading") {
+    document.addEventListener("DOMContentLoaded", startDailyGlamGuard, { once: true });
+  } else {
+    startDailyGlamGuard();
+  }
+
+  window.GLAM_RENDER_DAILY_GLAM = renderDailyGlam;
 })();
