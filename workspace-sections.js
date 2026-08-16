@@ -2,6 +2,7 @@
   "use strict";
 
   const STORAGE_KEY = "glam_command_hub_preview";
+  const appConfig = window.GLAM_CONFIG || {};
   const sectionMap = {
     favorites: { title: "Favorite Styles", singular: "Style" },
     mockups: { title: "Saved Mockups", singular: "Mockup" },
@@ -10,18 +11,70 @@
     stationery: { title: "Stationery", singular: "Stationery Item" },
   };
 
+  const workspaceClient =
+    window.supabase && appConfig.SUPABASE_URL && appConfig.SUPABASE_ANON_KEY
+      ? window.supabase.createClient(
+          appConfig.SUPABASE_URL,
+          appConfig.SUPABASE_ANON_KEY,
+        )
+      : null;
+
+  function emptyWorkspace() {
+    return {
+      prompts: [],
+      projects: [],
+      ideas: [],
+      generators: [],
+      favorites: [],
+      mockups: [],
+      storyboards: [],
+      ugc: [],
+      stationery: [],
+      usage: [],
+    };
+  }
+
   function readWorkspace() {
     try {
       const raw = localStorage.getItem(STORAGE_KEY);
       const data = raw ? JSON.parse(raw) : {};
-      return data && typeof data === "object" ? data : {};
+      return Object.assign(emptyWorkspace(), data && typeof data === "object" ? data : {});
     } catch (_error) {
-      return {};
+      return emptyWorkspace();
     }
   }
 
   function writeWorkspace(data) {
     localStorage.setItem(STORAGE_KEY, JSON.stringify(data));
+  }
+
+  async function saveWorkspaceDirectly(data) {
+    writeWorkspace(data);
+
+    if (!workspaceClient) {
+      throw new Error("Supabase is not connected.");
+    }
+
+    const { data: sessionData, error: sessionError } =
+      await workspaceClient.auth.getSession();
+
+    if (sessionError) throw sessionError;
+
+    const user = sessionData?.session?.user;
+    if (!user) {
+      throw new Error("Please log in again before saving.");
+    }
+
+    const { error } = await workspaceClient.from("workspace_state").upsert(
+      {
+        user_id: user.id,
+        data,
+        updated_at: new Date().toISOString(),
+      },
+      { onConflict: "user_id" },
+    );
+
+    if (error) throw error;
   }
 
   function escapeHtml(value) {
@@ -46,7 +99,8 @@
     if (!el) return;
     el.textContent = message;
     el.classList.add("show");
-    setTimeout(() => el.classList.remove("show"), 3200);
+    clearTimeout(toast.timer);
+    toast.timer = setTimeout(() => el.classList.remove("show"), 3200);
   }
 
   function closeModal() {
@@ -105,44 +159,74 @@
         <form id="workspaceSectionForm">
           <label>Title<input id="workspaceSectionTitle" required maxlength="120" placeholder="Give this ${escapeHtml(config.singular.toLowerCase())} a name"></label>
           <label>Notes<textarea id="workspaceSectionBody" placeholder="Add notes or details..."></textarea></label>
-          <button class="btn btn-primary btn-full" type="submit">Save</button>
+          <button id="workspaceSectionSave" class="btn btn-primary btn-full" type="submit">Save</button>
         </form>`);
 
-      document.getElementById("workspaceSectionForm")?.addEventListener("submit", (event) => {
+      document.getElementById("workspaceSectionForm")?.addEventListener("submit", async (event) => {
         event.preventDefault();
+        const button = document.getElementById("workspaceSectionSave");
         const latest = readWorkspace();
         if (!Array.isArray(latest[key])) latest[key] = [];
+
         latest[key].unshift({
           id: crypto.randomUUID ? crypto.randomUUID() : Date.now().toString(36),
           title: document.getElementById("workspaceSectionTitle").value.trim(),
           body: document.getElementById("workspaceSectionBody").value.trim(),
           created_at: new Date().toISOString(),
         });
-        writeWorkspace(latest);
-        closeModal();
-        renderSection(key);
-        toast(`${config.singular} saved to your private workspace.`);
+
+        if (button) {
+          button.disabled = true;
+          button.textContent = "Saving...";
+        }
+
+        try {
+          await saveWorkspaceDirectly(latest);
+          closeModal();
+          renderSection(key);
+          toast(`${config.singular} saved to your private workspace.`);
+        } catch (error) {
+          if (button) {
+            button.disabled = false;
+            button.textContent = "Save";
+          }
+          toast(error.message || `Unable to save ${config.singular.toLowerCase()}.`);
+          console.error("Private workspace section save failed:", error);
+        }
       });
     });
 
     container.querySelectorAll("[data-workspace-delete]").forEach((button) => {
-      button.addEventListener("click", () => {
+      button.addEventListener("click", async () => {
         const latest = readWorkspace();
-        latest[key] = (latest[key] || []).filter((item) => item.id !== button.dataset.workspaceDelete);
-        writeWorkspace(latest);
-        renderSection(key);
-        toast(`${config.singular} deleted.`);
+        const before = Array.isArray(latest[key]) ? latest[key].slice() : [];
+        latest[key] = before.filter((item) => item.id !== button.dataset.workspaceDelete);
+
+        try {
+          await saveWorkspaceDirectly(latest);
+          renderSection(key);
+          toast(`${config.singular} deleted.`);
+        } catch (error) {
+          latest[key] = before;
+          writeWorkspace(latest);
+          toast(error.message || `Unable to delete ${config.singular.toLowerCase()}.`);
+          console.error("Private workspace section delete failed:", error);
+        }
       });
     });
   }
 
-  document.addEventListener("click", (event) => {
-    const nav = event.target.closest("#mainNav [data-page]");
-    if (!nav || !sectionMap[nav.dataset.page]) return;
-    event.preventDefault();
-    event.stopImmediatePropagation();
-    renderSection(nav.dataset.page);
-  }, true);
+  document.addEventListener(
+    "click",
+    (event) => {
+      const nav = event.target.closest("#mainNav [data-page]");
+      if (!nav || !sectionMap[nav.dataset.page]) return;
+      event.preventDefault();
+      event.stopImmediatePropagation();
+      renderSection(nav.dataset.page);
+    },
+    true,
+  );
 
   const toastNode = document.getElementById("toast");
   if (toastNode) {
